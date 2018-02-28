@@ -32,13 +32,13 @@ class Operation {
   def getTopTenWinningPercent(spark: SparkSession): DataFrame = {
     val footballData = FootBallData.getFootBallData(spark)
     val newFootBallDataCount = footballData.withColumn("Count", lit(1)).withColumn("Total", lit(1))
-    val newFootballData = newFootBallDataCount.select("HomeTeam", "AwayTeam", "FTR" ,"Count", "Total")
+    val newFootballData = newFootBallDataCount.select("HomeTeam", "AwayTeam", "FTR", "Count", "Total")
     newFootballData.createOrReplaceTempView("viewTableFootBall")
     val homeTeamCount = spark.sql("select HomeTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " where FTR = 'H' group by HomeTeam, Total")
-    val AwayTeamCount = spark.sql("select AwayTeam as Team, sum(Count) as Count from viewTableFootBall" +
+    val awayTeamCount = spark.sql("select AwayTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " where FTR = 'A' group by AwayTeam, Total")
-    val winCountRows = homeTeamCount.union(AwayTeamCount)
+    val winCountRows = homeTeamCount.union(awayTeamCount)
     winCountRows.createOrReplaceTempView("viewTableFootBallCount")
 
     val winCountRowsComplete = spark.sql("select Team, sum(Count) as Count " +
@@ -54,14 +54,18 @@ class Operation {
     val countResult = spark.sql("select Team, sum(Total) as Total " +
       "from homeAwayJoinTable group by Team")
 
-    val homeAwayJoin =  countResult.join(winCountRowsComplete, "Team")
+    val homeAwayJoin = countResult.join(winCountRowsComplete, "Team")
     homeAwayJoin.createOrReplaceTempView("viewTableFootBallTotal")
 
 
-
-
     spark.udf.register("percentage",
-      (count: Int, total: Int) => { if(total != 0) { (count.toDouble / total.toDouble ) * 100 } else { 0.0 }})
+      (count: Int, total: Int) => {
+        if (total != 0) {
+          (count.toDouble / total.toDouble) * 100
+        } else {
+          0.0
+        }
+      })
 
     val homeTeamPercentage = spark.sql("select Team, Count, Total, percentage(Count,Total) as percentage " +
       "from viewTableFootBallTotal order by percentage desc limit 10")
@@ -85,13 +89,13 @@ class Operation {
     import spark.implicits._
     val footBallDataSet: Dataset[Team] = newFootballData.as[Team]
     footBallDataSet.createOrReplaceTempView("viewTableFootBall")
-    val homeTeamCount = spark.sql("select HomeTeam as Team,sum(Count) as Count from viewTableFootBall" +
+    val homeTeamCount = spark.sql("select HomeTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " group by HomeTeam")
     val homeDataSet: Dataset[TeamCount] = homeTeamCount.as[TeamCount]
     homeTeamCount.createOrReplaceTempView("homeCountView")
-    val AwayTeamCount = spark.sql("select AwayTeam as Team ,sum(Count) as Count from viewTableFootBall" +
+    val awayTeamCount = spark.sql("select AwayTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " group by AwayTeam")
-    val awayDataSet: Dataset[TeamCount] = AwayTeamCount.as[TeamCount]
+    val awayDataSet: Dataset[TeamCount] = awayTeamCount.as[TeamCount]
 
     val homeAwayJoin = homeDataSet.union(awayDataSet)
 
@@ -110,10 +114,10 @@ class Operation {
     footBallDataSet.createOrReplaceTempView("viewTableFootBall")
     val homeTeamCount = spark.sql("select HomeTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " where FTR = 'H' group by HomeTeam")
-    val AwayTeamCount = spark.sql("select AwayTeam as Team, sum(Count) as Count from viewTableFootBall" +
+    val awayTeamCount = spark.sql("select AwayTeam as Team, sum(Count) as Count from viewTableFootBall" +
       " where FTR = 'A' group by AwayTeam")
 
-    val homeAwayJoin = homeTeamCount.union(AwayTeamCount)
+    val homeAwayJoin = homeTeamCount.union(awayTeamCount)
 
     homeAwayJoin.createOrReplaceTempView("homeAwayJoinTable")
     val countResult = spark.sql("select Team, sum(Count) as Count " +
